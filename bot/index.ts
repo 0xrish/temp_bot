@@ -130,6 +130,9 @@ Ready to begin your creative journey? Let's make something amazing! ✨`;
         [
           { text: "🎨 Join Community", url: "https://t.me/createathon" },
           { text: "💬 Give Feedback", callback_data: "feedback" }
+        ],
+        [
+          { text: "Open App", web_app: { url: "https://miniapp.createathon.co/" } }
         ]
       ]
     }
