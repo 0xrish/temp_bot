@@ -105,6 +105,9 @@ ${message}
   }
 }
 
+// Store user feedback request message IDs to clean up later
+const userFeedbackMessages = new Map<number, number>();
+
 // Basic commands
 bot.command('start', (ctx: any) => {
   const welcomeMessage = `🌟 Welcome to Createathon, ${ctx.from.first_name}! 🌟
@@ -138,14 +141,33 @@ Ready to begin your creative journey? Let's make something amazing! ✨`;
     }
   });
 
-  // Add message about the App button
-  ctx.reply(`To access our app, please click the "App" button located in the bottom left corner of Telegram. This will open our application directly within Telegram! 🚀`);
 });
 
 // Handle callback queries
 bot.action('feedback', async (ctx: any) => {
   ctx.answerCbQuery();
-  ctx.reply('We value your feedback! Please share your thoughts, suggestions, or any issues you\'ve encountered. Your input helps us improve! 🚀\n\nJust type your message and we\'ll receive it.');
+  const msg = await ctx.reply('We\'d love to hear from you! Please share your feedback, suggestions, or any issues you\'ve encountered. Your input helps us improve! 🚀\n\nJust type your message and we\'ll receive it.', {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: "❌ Cancel", callback_data: "cancel_feedback" }
+      ]]
+    }
+  });
+  
+  // Store the message ID for later cleanup
+  userFeedbackMessages.set(ctx.from.id, msg.message_id);
+});
+
+// Cancel feedback handler
+bot.action('cancel_feedback', async (ctx: any) => {
+  try {
+    // Delete the message with the feedback instructions
+    await ctx.deleteMessage();
+    ctx.answerCbQuery('Feedback canceled');
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    ctx.answerCbQuery('Could not cancel feedback');
+  }
 });
 
 bot.action('get_inspired', (ctx: any) => {
@@ -169,8 +191,17 @@ bot.command('help', (ctx: any) => {
   );
 });
 
-bot.command('feedback', (ctx: any) => {
-  ctx.reply('We\'d love to hear from you! Please share your feedback, suggestions, or any issues you\'ve encountered. Your input helps us improve! 🚀\n\nJust type your message and we\'ll receive it.');
+bot.command('feedback', async (ctx: any) => {
+  const msg = await ctx.reply('We\'d love to hear from you! Please share your feedback, suggestions, or any issues you\'ve encountered. Your input helps us improve! 🚀\n\nJust type your message and we\'ll receive it.', {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: "❌ Cancel", callback_data: "cancel_feedback" }
+      ]]
+    }
+  });
+  
+  // Store the message ID for later cleanup
+  userFeedbackMessages.set(ctx.from.id, msg.message_id);
 });
 
 bot.command('community', (ctx: any) => {
@@ -189,7 +220,20 @@ bot.on('message', async (ctx: any) => {
     try {
       // Send feedback to API
       await sendFeedback(ctx.from, ctx.message.text);
-      ctx.reply('Thank you for your feedback! We appreciate your input and will use it to improve our services. 🚀');
+      await ctx.reply('Thank you for your feedback! We appreciate your input and will use it to improve our services. 🚀');
+      
+      // Clean up the feedback request message after 5 seconds
+      const feedbackMsgId = userFeedbackMessages.get(ctx.from.id);
+      if (feedbackMsgId) {
+        setTimeout(async () => {
+          try {
+            await ctx.telegram.deleteMessage(ctx.chat.id, feedbackMsgId);
+            userFeedbackMessages.delete(ctx.from.id);
+          } catch (error) {
+            console.error('Error deleting feedback message:', error);
+          }
+        }, 4000); // 4 seconds delay
+      }
     } catch (error) {
       console.error('Error sending feedback:', error);
       ctx.reply('Sorry, there was an error sending your feedback. Please try again later. 😔');
